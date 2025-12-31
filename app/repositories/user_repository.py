@@ -70,6 +70,7 @@ class UserRepository:
         return row[0] if row else 0
 
     async def list_telegram_ids(self) -> list[int]:
+<<<<<<< codex-ctqc8a
         rows = await self._db.fetchall("SELECT telegram_id FROM telegram_users")
         return [row[0] for row in rows]
 
@@ -78,3 +79,7 @@ class UserRepository:
             "INSERT INTO telegram_users (telegram_id) VALUES (?) ON CONFLICT(telegram_id) DO NOTHING",
             telegram_id,
         )
+=======
+        rows = await self._db.fetchall("SELECT telegram_id FROM users")
+        return [row[0] for row in rows]
+>>>>>>> main
