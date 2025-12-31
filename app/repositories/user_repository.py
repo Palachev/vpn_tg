@@ -86,6 +86,7 @@ class UserRepository:
             SELECT telegram_id FROM users
             """
         )
+        rows = await self._db.fetchall("SELECT telegram_id FROM telegram_users")
         return [row[0] for row in rows]
 
     async def register_telegram_user(self, telegram_id: int) -> None:
@@ -93,3 +94,4 @@ class UserRepository:
             "INSERT INTO telegram_users (telegram_id) VALUES (?) ON CONFLICT(telegram_id) DO NOTHING",
             telegram_id,
         )
+      main
