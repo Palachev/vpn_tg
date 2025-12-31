@@ -31,6 +31,11 @@ class Database:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS telegram_users (
+                telegram_id INTEGER PRIMARY KEY,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS payments (
                 invoice_id TEXT PRIMARY KEY,
                 telegram_id INTEGER NOT NULL,
@@ -52,6 +57,12 @@ class Database:
 
             CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(telegram_id);
             CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id);
+            """
+        )
+        await self._conn.execute(
+            """
+            INSERT OR IGNORE INTO telegram_users (telegram_id)
+            SELECT telegram_id FROM users
             """
         )
         await self._conn.commit()
