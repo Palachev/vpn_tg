@@ -59,7 +59,7 @@ class UserRepository:
         )
 
     async def count_users(self) -> int:
-        row = await self._db.fetchone("SELECT COUNT(*) FROM users")
+        row = await self._db.fetchone("SELECT COUNT(*) FROM telegram_users")
         return row[0] if row else 0
 
     async def count_active_subscriptions(self, now_iso: str) -> int:
@@ -70,5 +70,16 @@ class UserRepository:
         return row[0] if row else 0
 
     async def list_telegram_ids(self) -> list[int]:
+<<<<<<< codex-ctqc8a
+        rows = await self._db.fetchall("SELECT telegram_id FROM telegram_users")
+        return [row[0] for row in rows]
+
+    async def register_telegram_user(self, telegram_id: int) -> None:
+        await self._db.execute(
+            "INSERT INTO telegram_users (telegram_id) VALUES (?) ON CONFLICT(telegram_id) DO NOTHING",
+            telegram_id,
+        )
+=======
         rows = await self._db.fetchall("SELECT telegram_id FROM users")
         return [row[0] for row in rows]
+>>>>>>> main
