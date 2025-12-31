@@ -68,3 +68,7 @@ class UserRepository:
             now_iso,
         )
         return row[0] if row else 0
+
+    async def list_telegram_ids(self) -> list[int]:
+        rows = await self._db.fetchall("SELECT telegram_id FROM users")
+        return [row[0] for row in rows]
