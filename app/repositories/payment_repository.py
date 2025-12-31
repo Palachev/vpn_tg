@@ -59,3 +59,11 @@ class PaymentRepository:
             telegram_id,
         )
         return row[0] if row else 0
+
+    async def count_paid_invoices(self) -> int:
+        row = await self._db.fetchone("SELECT COUNT(*) FROM payments WHERE status = 'paid'")
+        return row[0] if row else 0
+
+    async def sum_paid_amount(self) -> float:
+        row = await self._db.fetchone("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'paid'")
+        return float(row[0]) if row else 0.0
