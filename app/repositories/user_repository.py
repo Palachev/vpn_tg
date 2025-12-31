@@ -57,3 +57,18 @@ class UserRepository:
             link,
             telegram_id,
         )
+
+    async def count_users(self) -> int:
+        row = await self._db.fetchone("SELECT COUNT(*) FROM users")
+        return row[0] if row else 0
+
+    async def count_active_subscriptions(self, now_iso: str) -> int:
+        row = await self._db.fetchone(
+            "SELECT COUNT(*) FROM users WHERE subscription_expires_at IS NOT NULL AND subscription_expires_at > ?",
+            now_iso,
+        )
+        return row[0] if row else 0
+
+    async def list_telegram_ids(self) -> list[int]:
+        rows = await self._db.fetchall("SELECT telegram_id FROM users")
+        return [row[0] for row in rows]

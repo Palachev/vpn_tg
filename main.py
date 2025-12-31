@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher
 
 from app.config import Settings
 from app.db import Database
-from app.handlers import help, install, purchase, referral, renew, start, status
+from app.handlers import admin, help, install, purchase, referral, renew, start, status
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.referral_repository import ReferralRepository
 from app.repositories.user_repository import UserRepository
@@ -51,12 +51,18 @@ async def main() -> None:
         payment_service=payment_service,
         subscription_service=subscription_service,
         referral_service=referral_service,
+        user_repo=user_repo,
+        payment_repo=payment_repo,
+        settings=settings,
         bot_username=bot_info.username,
     ))
     dp.callback_query.middleware(DependencyMiddleware(
         payment_service=payment_service,
         subscription_service=subscription_service,
         referral_service=referral_service,
+        user_repo=user_repo,
+        payment_repo=payment_repo,
+        settings=settings,
         bot_username=bot_info.username,
     ))
 
@@ -67,6 +73,7 @@ async def main() -> None:
     dp.include_router(renew.router)
     dp.include_router(referral.router)
     dp.include_router(help.router)
+    dp.include_router(admin.router)
 
     webhook_app = WebhookApp(payment_service, subscription_service, settings.webhook_path).build()
 
