@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.memory import MemoryStorage
 
 import asyncio
 import logging
@@ -46,10 +47,10 @@ async def main() -> None:
     subscription_service = SubscriptionService(settings, user_repo, payment_repo, marzban)
 
     bot = Bot(
-    token=settings.telegram_token,
-    default=DefaultBotProperties(parse_mode="HTML")
-)
-    dp = Dispatcher()
+        token=settings.telegram_token,
+        default=DefaultBotProperties(parse_mode="HTML"),
+    )
+    dp = Dispatcher(storage=MemoryStorage())
 
     bot_info = await bot.get_me()
     dp.message.middleware(DependencyMiddleware(
