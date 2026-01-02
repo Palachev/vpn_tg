@@ -26,7 +26,12 @@ class SubscriptionService:
 
     def get_tariff(self, code: str) -> Tariff:
         plan = TARIFFS[code]
-        return Tariff(code=code, title=plan["title"], price=plan["price"], duration=plan["days"])
+        return Tariff(
+            code=code,
+            title=plan["title"],
+            price=plan["price"],
+            duration=timedelta(days=plan["days"]),
+        )
 
     async def provision_user(self, telegram_id: int, tariff: Tariff, referral_bonus: timedelta | None = None) -> User:
         existing = await self.user_repo.get_by_telegram_id(telegram_id)
