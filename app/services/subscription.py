@@ -50,8 +50,22 @@ class SubscriptionService:
                 subscription_link=link,
                 traffic_limit_gb=existing.traffic_limit_gb,
             )
-        created = await self.marzban.create_user(username, expires_at, DEFAULT_TRAFFIC_LIMIT_GB)
+        created = await self.marzban.create_user(
+            username,
+            expires_at,
+            DEFAULT_TRAFFIC_LIMIT_GB,
+            proxy=self.settings.marzban_proxy or None,
+            flow=self.settings.marzban_flow or None,
+            inbounds=self.settings.marzban_inbounds or None,
+        )
         link = await self.marzban.get_subscription_link(username)
+        if not link:
+            link = (
+                created.get("subscription_url")
+                or created.get("subscription_link")
+                or created.get("link")
+                or ""
+            )
         user = User(
             telegram_id=telegram_id,
             marzban_username=username,
