@@ -36,4 +36,9 @@ class MarzbanService:
 
     async def get_subscription_link(self, username: str) -> str:
         data = await self._request("GET", f"/api/user/{username}/subscription")
-        return data.get("url")
+        return (
+            data.get("url")
+            or data.get("subscription_url")
+            or data.get("subscription_link")
+            or ""
+        )
