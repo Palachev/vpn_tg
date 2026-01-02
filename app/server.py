@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import aiohttp
 from aiohttp import web
 
 from app.services.payments import PaymentService
@@ -23,7 +24,13 @@ class WebhookApp:
         result = await self.payment_service.verify_webhook(payload, signature)
         if not result:
             return web.json_response({"status": "ignored"}, status=400)
-        user = await self.subscription_service.process_payment_success(result.invoice_id)
+        try:
+            user = await self.subscription_service.process_payment_success(result.invoice_id)
+        except aiohttp.ClientResponseError as exc:
+            return web.json_response(
+                {"status": "marzban_error", "code": exc.status, "message": exc.message},
+                status=502,
+            )
         if not user:
             return web.json_response({"status": "not_found"}, status=404)
         return web.json_response({"status": "ok", "user": user.marzban_username})
