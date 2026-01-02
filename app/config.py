@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     telegram_admin_ids: list[int] = []
     marzban_base_url: str
     marzban_api_key: str
+    marzban_proxy: str = "vless"
+    marzban_flow: str = "xtls-rprx-vision"
+    marzban_inbounds: list[str] = ["VLESS TCP REALITY"]
     payment_provider_key: str
     payment_public_key: str
     payment_webhook_secret: str
@@ -38,6 +41,16 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [int(item.strip()) for item in value.split(",") if item.strip()]
         return [int(value)]
+
+    @field_validator("marzban_inbounds", mode="before")
+    def parse_marzban_inbounds(cls, value: object) -> list[str]:
+        if value is None or value == "":
+            return ["VLESS TCP REALITY"]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return [str(value)]
 
     class Config:
         env_file = ".env"
