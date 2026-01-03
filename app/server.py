@@ -1,14 +1,21 @@
 from __future__ import annotations
 
-import aiohttp
 from aiohttp import web
+from aiogram import Bot
 
 from app.services.payments import PaymentService
 from app.services.subscription import SubscriptionService
 
 
 class WebhookApp:
-    def __init__(self, payment_service: PaymentService, subscription_service: SubscriptionService, webhook_path: str):
+    def __init__(
+        self,
+        bot: Bot,
+        payment_service: PaymentService,
+        subscription_service: SubscriptionService,
+        webhook_path: str,
+    ):
+        self.bot = bot
         self.payment_service = payment_service
         self.subscription_service = subscription_service
         self.webhook_path = webhook_path
@@ -33,4 +40,5 @@ class WebhookApp:
             )
         if not user:
             return web.json_response({"status": "not_found"}, status=404)
+        await self._send_access_message(user.telegram_id, user.subscription_link or "")
         return web.json_response({"status": "ok", "user": user.marzban_username})

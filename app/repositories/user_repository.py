@@ -50,10 +50,10 @@ class UserRepository:
             traffic_limit_gb=row[5],
         )
 
-    async def update_subscription(self, telegram_id: int, expires_at: datetime, link: str | None) -> None:
+    async def update_subscription(self, telegram_id: int, expires_at: datetime | None, link: str | None) -> None:
         await self._db.execute(
             """UPDATE users SET subscription_expires_at = ?, subscription_link = ? WHERE telegram_id = ?""",
-            expires_at.isoformat(),
+            expires_at.isoformat() if expires_at else None,
             link,
             telegram_id,
         )

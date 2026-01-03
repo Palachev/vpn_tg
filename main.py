@@ -81,7 +81,7 @@ async def main() -> None:
     dp.include_router(help.router)
     dp.include_router(admin.router)
 
-    webhook_app = WebhookApp(payment_service, subscription_service, settings.webhook_path).build()
+    webhook_app = WebhookApp(bot, payment_service, subscription_service, settings.webhook_path).build()
 
     await asyncio.gather(
         start_webhook_app(webhook_app),

@@ -12,3 +12,4 @@ class User:
     subscription_expires_at: datetime | None
     subscription_link: str | None
     traffic_limit_gb: float | None
+    is_stale: bool = False
