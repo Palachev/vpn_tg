@@ -11,5 +11,9 @@ class Tariff:
     price: float
     duration: timedelta
 
+    def __post_init__(self) -> None:
+        if isinstance(self.duration, int):
+            self.duration = timedelta(days=self.duration)
+
 
 DEFAULT_TRAFFIC_LIMIT_GB = 300
