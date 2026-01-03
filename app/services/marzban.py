@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import logging
 from typing import Any
 
 import aiohttp
@@ -11,6 +12,7 @@ class MarzbanService:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._token: str | None = None
+        self._logger = logging.getLogger(__name__)
 
     async def _request(self, method: str, path: str, json: dict[str, Any] | None = None) -> dict[str, Any]:
         for attempt in range(2):
@@ -21,8 +23,22 @@ class MarzbanService:
                     if resp.status == 401 and self._can_refresh_token() and attempt == 0:
                         self._token = None
                         continue
-                    resp.raise_for_status()
-                    return await resp.json()
+                    if resp.status >= 400:
+                        body = await resp.text()
+                        self._logger.error(
+                            "Marzban API error %s %s: status=%s body=%s",
+                            method,
+                            path,
+                            resp.status,
+                            body,
+                        )
+                        resp.raise_for_status()
+                    if resp.status == 204:
+                        return {}
+                    try:
+                        return await resp.json(content_type=None)
+                    except aiohttp.ContentTypeError:
+                        return {}
         return {}
 
     async def _get_token(self) -> str:
@@ -78,6 +94,9 @@ class MarzbanService:
 
     async def get_user(self, username: str) -> dict[str, Any]:
         return await self._request("GET", f"/api/user/{username}")
+
+    async def delete_user(self, username: str) -> dict[str, Any]:
+        return await self._request("DELETE", f"/api/user/{username}")
 
     async def get_subscription_link(self, username: str) -> str:
         data = await self._request("GET", f"/api/user/{username}/subscription")
