@@ -42,16 +42,17 @@ class PaymentRepository:
         )
         return row is not None
 
-    async def complete_or_skip(self, invoice_id: str, status: str) -> bool:
+    async def complete_or_skip(self, invoice_id: str) -> bool:
         """Idempotent completion; returns True if marked newly."""
-        row = await self._db.fetchone(
-            "SELECT status FROM payments WHERE invoice_id = ?",
+        rowcount = await self._db.execute_with_rowcount(
+            """
+            UPDATE payments
+            SET status = 'paid', updated_at = CURRENT_TIMESTAMP
+            WHERE invoice_id = ? AND status != 'paid'
+            """,
             invoice_id,
         )
-        if row and row[0] == status:
-            return False
-        await self.mark_paid(invoice_id, status)
-        return True
+        return rowcount == 1
 
     async def count_successful_payments(self, telegram_id: int) -> int:
         row = await self._db.fetchone(
