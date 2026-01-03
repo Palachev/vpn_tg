@@ -8,12 +8,12 @@ from app.services.referral import ReferralService
 router = Router()
 
 
-@router.message(F.text == "🎁 Пригласить друзей")
+@router.message(F.text == "🎁 Пригласить друга")
 async def share_referral(message: Message, referral_service: ReferralService, bot_username: str) -> None:
     link = referral_service.generate_ref_link(bot_username, message.from_user.id)
     text = (
-        "Приводи друзей и получай +дни к подписке.\n\n"
+        "Приводи друзей и получай +7 дней к подписке.\n\n"
         f"Твоя ссылка: {link}\n"
-        "За каждого друга — +дни к сроку. Бонусы суммируются автоматически."
+        "За каждого друга — +7 дней к сроку. Бонусы суммируются автоматически."
     )
     await message.answer(text)

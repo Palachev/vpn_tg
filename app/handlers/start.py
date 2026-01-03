@@ -19,10 +19,10 @@ async def handle_start(
 ) -> None:
     await user_repo.register_telegram_user(message.from_user.id)
     ref_code = message.text.split(" ")[1] if message.text and " " in message.text else None
-    if ref_code and ref_code.startswith("ref"):
-        referrer_id = int(ref_code.replace("ref", ""))
-        has_referrer = await referral_service.has_referrer(message.from_user.id)
-        if not has_referrer:
+    if ref_code:
+        ref_value = ref_code.replace("ref", "")
+        if ref_value.isdigit():
+            referrer_id = int(ref_value)
             await referral_service.register_referral(referrer_id, message.from_user.id)
     greeting = (
         "👋 Добро пожаловать!\n\n"

@@ -16,6 +16,9 @@ from app.services.marzban import MarzbanService
 
 
 class SubscriptionService:
+    TRIAL_DURATION = timedelta(days=1)
+    TRIAL_TRAFFIC_LIMIT_GB = 5.0
+
     def __init__(
         self,
         settings: Settings,
@@ -38,8 +41,15 @@ class SubscriptionService:
             duration=timedelta(days=plan["days"]),
         )
 
-    async def provision_user(self, telegram_id: int, tariff: Tariff, referral_bonus: timedelta | None = None) -> User:
+    async def provision_user(
+        self,
+        telegram_id: int,
+        tariff: Tariff,
+        referral_bonus: timedelta | None = None,
+        traffic_limit_gb: float | None = None,
+    ) -> User:
         existing = await self.user_repo.get_by_telegram_id(telegram_id)
+        trial_used_meta, referrer_meta, bonus_applied_meta = await self.user_repo.get_user_meta(telegram_id)
         bonus = referral_bonus or timedelta()
         now = datetime.utcnow()
         username = existing.marzban_username if existing else f"tg_{telegram_id}"
@@ -81,13 +91,20 @@ class SubscriptionService:
                 )
                 raise
 
+        current_expires_at = (
+            self._extract_expire(marzban_user) if marzban_user else None
+        ) or (existing.subscription_expires_at if existing else None)
+        if not current_expires_at:
+            current_expires_at = now
+        effective_base = max(current_expires_at, now)
+        target_expires_at = effective_base + tariff.duration + bonus
+
         if marzban_user is None:
-            default_expires_at = now + tariff.duration + bonus
             try:
                 marzban_user = await self.marzban.create_user(
                     username,
-                    default_expires_at,
-                    DEFAULT_TRAFFIC_LIMIT_GB,
+                    target_expires_at,
+                    traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB,
                     proxy=self.settings.marzban_proxy or None,
                     flow=self.settings.marzban_flow or None,
                     inbounds=self.settings.marzban_inbounds or None,
@@ -115,16 +132,8 @@ class SubscriptionService:
                     )
                     raise
 
-        current_expires_at = (
-            self._extract_expire(marzban_user) if marzban_user else None
-        ) or (existing.subscription_expires_at if existing else None)
-        if not current_expires_at:
-            current_expires_at = now
-        effective_base = max(current_expires_at, now)
-        new_expires_at = effective_base + tariff.duration + bonus
-
         if not created:
-            add_days = self._calculate_add_days(current_expires_at, new_expires_at)
+            add_days = self._calculate_add_days(current_expires_at, target_expires_at)
             if add_days > 0:
                 await self.marzban.renew_user(username, timedelta(days=add_days))
                 self._logger.info(
@@ -151,9 +160,12 @@ class SubscriptionService:
             telegram_id=telegram_id,
             marzban_username=username,
             marzban_uuid=marzban_uuid or (existing.marzban_uuid if existing else ""),
-            subscription_expires_at=new_expires_at,
+            subscription_expires_at=target_expires_at,
             subscription_link=link or (existing.subscription_link if existing else None),
-            traffic_limit_gb=existing.traffic_limit_gb if existing else DEFAULT_TRAFFIC_LIMIT_GB,
+            traffic_limit_gb=existing.traffic_limit_gb if existing else (traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB),
+            trial_used=existing.trial_used if existing else trial_used_meta,
+            referrer_telegram_id=existing.referrer_telegram_id if existing else referrer_meta,
+            referral_bonus_applied=existing.referral_bonus_applied if existing else bonus_applied_meta,
         )
         await self.user_repo.upsert_user(user)
         return user
@@ -170,7 +182,21 @@ class SubscriptionService:
             return await self.user_repo.get_by_telegram_id(telegram_id)
         tariff = self.get_tariff(tariff_code)
         user = await self.provision_user(telegram_id, tariff)
+        await self._apply_referral_bonus(telegram_id)
         return user
+
+    async def provision_trial(self, telegram_id: int) -> User:
+        tariff = Tariff(
+            code="trial",
+            title="Пробный период",
+            price=0.0,
+            duration=self.TRIAL_DURATION,
+        )
+        return await self.provision_user(
+            telegram_id,
+            tariff,
+            traffic_limit_gb=self.TRIAL_TRAFFIC_LIMIT_GB,
+        )
 
     async def get_status(self, telegram_id: int) -> User | None:
         user = await self.user_repo.get_by_telegram_id(telegram_id)
@@ -195,6 +221,9 @@ class SubscriptionService:
                 subscription_link=link or user.subscription_link,
                 traffic_limit_gb=user.traffic_limit_gb,
                 is_stale=False,
+                trial_used=user.trial_used,
+                referrer_telegram_id=user.referrer_telegram_id,
+                referral_bonus_applied=user.referral_bonus_applied,
             )
         except aiohttp.ClientResponseError as exc:
             self._logger.warning(
@@ -211,6 +240,9 @@ class SubscriptionService:
                 subscription_link=user.subscription_link,
                 traffic_limit_gb=user.traffic_limit_gb,
                 is_stale=True,
+                trial_used=user.trial_used,
+                referrer_telegram_id=user.referrer_telegram_id,
+                referral_bonus_applied=user.referral_bonus_applied,
             )
 
     def _extract_expire(self, marzban_user: dict[str, object] | None) -> datetime | None:
@@ -253,3 +285,32 @@ class SubscriptionService:
                 or str(marzban_user.get("link") or "")
             )
         return link
+
+    async def _apply_referral_bonus(self, invitee_id: int) -> None:
+        referrer_id = await self.user_repo.get_referrer_id(invitee_id)
+        if not referrer_id or referrer_id == invitee_id:
+            return
+        if await self.user_repo.has_referral_bonus_applied(invitee_id):
+            return
+        bonus_days = timedelta(days=self.settings.referral_bonus_days)
+        bonus_tariff = Tariff(
+            code="referral_bonus",
+            title="Referral bonus",
+            price=0.0,
+            duration=timedelta(),
+        )
+        try:
+            await self.provision_user(referrer_id, bonus_tariff, referral_bonus=bonus_days)
+            await self.user_repo.mark_referral_bonus_applied(invitee_id)
+            self._logger.info(
+                "Referral bonus applied: invitee=%s referrer=%s days=%s",
+                invitee_id,
+                referrer_id,
+                self.settings.referral_bonus_days,
+            )
+        except Exception:
+            self._logger.exception(
+                "Failed to apply referral bonus: invitee=%s referrer=%s",
+                invitee_id,
+                referrer_id,
+            )
