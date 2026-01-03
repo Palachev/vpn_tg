@@ -10,7 +10,8 @@ def main_menu() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         keyboard=[
             [KeyboardButton(text="💳 Купить VPN"), KeyboardButton(text="🔑 Установить VPN")],
-            [KeyboardButton(text="📊 Статус"), KeyboardButton(text="🎁 Пригласить друзей")],
+            [KeyboardButton(text="📊 Статус"), KeyboardButton(text="🎁 Пригласить друга")],
+            [KeyboardButton(text="🆓 Пробный период")],
             [KeyboardButton(text="🆘 Помощь"), KeyboardButton(text="📄 Оферта / Условия")],
         ],
     )
