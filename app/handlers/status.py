@@ -25,6 +25,8 @@ async def show_status(message: Message, subscription_service: SubscriptionServic
         f"Лимит трафика: {user.traffic_limit_gb or '∞'} GB\n"
         "Если интернет в мобильной сети капризничает — переключись на Mobile сервер."
     )
+    if user.is_stale:
+        text = f"{text}\n\n⚠️ Данные могут быть устаревшими — Marzban временно недоступен."
     if user.subscription_link:
         safe_link = html.escape(user.subscription_link)
         text = (
