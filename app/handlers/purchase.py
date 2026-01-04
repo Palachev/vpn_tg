@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import html
+import logging
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery
 
+from app.config import Settings
 from app.keyboards.common import tariffs_keyboard
 from app.repositories.payment_repository import PaymentRepository
 from app.services.payments import PaymentService
 from app.services.subscription import SubscriptionService
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(F.text == "💳 Купить VPN")
@@ -47,6 +50,7 @@ async def handle_successful_payment(
     message: Message,
     payment_repo: PaymentRepository,
     subscription_service: SubscriptionService,
+    settings: Settings,
 ) -> None:
     payment = message.successful_payment
     payload_to_tariff = {
@@ -67,16 +71,49 @@ async def handle_successful_payment(
         float(payment.total_amount),
         payment.currency,
     )
-    user = await subscription_service.process_payment_success(invoice_id)
-    if user and user.subscription_link:
-        safe_link = html.escape(user.subscription_link)
+    try:
+        user = await subscription_service.process_payment_success(invoice_id)
+    except Exception as exc:
+        logger.exception("Failed to provision after payment: invoice_id=%s", invoice_id)
+        await payment_repo.mark_paid_pending(invoice_id)
+        for admin_id in settings.telegram_admin_ids:
+            await message.bot.send_message(
+                admin_id,
+                "⚠️ Оплата принята, но выдача доступа отложена.\n"
+                f"Invoice: {invoice_id}\n"
+                f"Ошибка: {exc}",
+            )
         await message.answer(
-            "✅ Оплата подтверждена!\n\n"
-            "Вот твоя ссылка для подключения:\n"
-            f"<code>{safe_link}</code>\n\n"
-            "Инструкция по установке доступна в меню «📱 Установка»."
+            "Оплата подтверждена, но выдача доступа задержана. Мы уже работаем над этим."
         )
         return
+    if user and user.subscription_link:
+        await _send_access(message, user.subscription_link)
+        return
+    if user:
+        status = await subscription_service.get_status(user.telegram_id)
+        if status and status.subscription_link:
+            await _send_access(message, status.subscription_link)
+            return
     await message.answer(
         "Оплата подтверждена, но ссылка на подписку пока не готова. Напиши в поддержку."
+    )
+
+
+def _access_keyboard(link: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Скопировать", url=link)]
+        ]
+    )
+
+
+async def _send_access(message: Message, link: str) -> None:
+    safe_link = html.escape(link)
+    await message.answer(
+        "✅ Оплата подтверждена!\n\n"
+        "Вот твоя ссылка для подключения:\n"
+        f"<code>{safe_link}</code>\n\n"
+        "Инструкция по установке доступна в меню «📱 Установка».",
+        reply_markup=_access_keyboard(link),
     )
