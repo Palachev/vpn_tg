@@ -303,6 +303,12 @@ class SubscriptionService:
                 or str(marzban_user.get("subscription_link") or "")
                 or str(marzban_user.get("link") or "")
             )
+        if not link and marzban_user:
+            links = marzban_user.get("links")
+            if isinstance(links, list):
+                link = "\n".join(str(item) for item in links if item)
+            elif isinstance(links, str):
+                link = links
         return link
 
     async def _apply_referral_bonus(self, invitee_id: int) -> None:

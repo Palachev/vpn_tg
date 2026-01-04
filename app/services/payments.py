@@ -32,3 +32,26 @@ class PaymentService:
             "m12": "vpn_12m",
         }
         return payloads.get(tariff_code, hashlib.sha1(tariff_code.encode()).hexdigest())
+
+
+def payload_to_days(payload: str) -> int:
+    mapping = {
+        "vpn_1m": 30,
+        "vpn_3m": 90,
+        "vpn_6m": 180,
+        "vpn_12m": 365,
+    }
+    return mapping.get(payload, 0)
+
+
+def simulate_payload_mapping() -> dict[str, int]:
+    return {
+        "vpn_1m": payload_to_days("vpn_1m"),
+        "vpn_3m": payload_to_days("vpn_3m"),
+        "vpn_6m": payload_to_days("vpn_6m"),
+        "vpn_12m": payload_to_days("vpn_12m"),
+    }
+
+
+if __name__ == "__main__":
+    print(simulate_payload_mapping())
