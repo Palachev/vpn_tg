@@ -170,7 +170,14 @@ class SubscriptionService:
                     username,
                 )
 
-        link = await self._fetch_subscription_link(username, marzban_user)
+        existing_link = existing.subscription_link if existing else None
+        link = existing_link or await self._fetch_subscription_link(username, marzban_user)
+        if existing_link:
+            self._logger.info(
+                "Using existing subscription link for user: telegram_id=%s username=%s",
+                telegram_id,
+                username,
+            )
         marzban_uuid = ""
         if marzban_user:
             marzban_uuid = str(marzban_user.get("uuid") or "")
@@ -182,7 +189,7 @@ class SubscriptionService:
             marzban_username=username,
             marzban_uuid=marzban_uuid or (existing.marzban_uuid if existing else ""),
             subscription_expires_at=target_expires_at,
-            subscription_link=link or (existing.subscription_link if existing else None),
+            subscription_link=existing_link or link or (existing.subscription_link if existing else None),
             traffic_limit_gb=existing.traffic_limit_gb if existing else (traffic_limit_gb or DEFAULT_TRAFFIC_LIMIT_GB),
             trial_used=existing.trial_used if existing else trial_used_meta,
             referrer_telegram_id=existing.referrer_telegram_id if existing else referrer_meta,
@@ -227,8 +234,10 @@ class SubscriptionService:
         try:
             marzban_user = await self.marzban.get_user(username)
             expires_at = self._extract_expire(marzban_user) or user.subscription_expires_at
-            link = await self._fetch_subscription_link(username, marzban_user)
-            if (expires_at != user.subscription_expires_at) or (link and link != user.subscription_link):
+            link = user.subscription_link or await self._fetch_subscription_link(username, marzban_user)
+            if (expires_at != user.subscription_expires_at) or (
+                not user.subscription_link and link and link != user.subscription_link
+            ):
                 await self.user_repo.update_subscription(
                     telegram_id,
                     expires_at or user.subscription_expires_at,
