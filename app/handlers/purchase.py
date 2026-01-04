@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import logging
+from urllib.parse import urlparse
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery
@@ -102,18 +103,26 @@ async def handle_successful_payment(
 
 def _access_keyboard(link: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Скопировать", url=link)]
-        ]
+        inline_keyboard=[[InlineKeyboardButton(text="📋 Скопировать", url=link)]]
     )
 
 
 async def _send_access(message: Message, link: str) -> None:
     safe_link = html.escape(link)
+    keyboard = _access_keyboard(link) if _is_valid_url(link) else None
+    if not keyboard:
+        logger.warning("Access link invalid for inline button: %s", link)
     await message.answer(
         "✅ Оплата подтверждена!\n\n"
         "Вот твоя ссылка для подключения:\n"
         f"<code>{safe_link}</code>\n\n"
         "Инструкция по установке доступна в меню «📱 Установка».",
-        reply_markup=_access_keyboard(link),
+        reply_markup=keyboard,
     )
+
+
+def _is_valid_url(link: str) -> bool:
+    if not link:
+        return False
+    parsed = urlparse(link)
+    return bool(parsed.scheme and parsed.netloc)

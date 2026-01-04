@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import asyncio
 import logging
 import math
+from urllib.parse import urljoin, urlparse
 from typing import Optional
 
 import aiohttp
@@ -154,12 +155,13 @@ class SubscriptionService:
         if not created:
             add_days = self._calculate_add_days(current_expires_at, target_expires_at)
             if add_days > 0:
-                await self.marzban.renew_user(username, timedelta(days=add_days))
+                await self.marzban.update_user_expire(username, target_expires_at)
                 self._logger.info(
-                    "Marzban user renewed: telegram_id=%s username=%s add_days=%s",
+                    "Marzban user renewed: telegram_id=%s username=%s add_days=%s new_expire=%s",
                     telegram_id,
                     username,
                     add_days,
+                    target_expires_at.isoformat(),
                 )
             else:
                 self._logger.info(
@@ -288,15 +290,7 @@ class SubscriptionService:
         username: str,
         marzban_user: dict[str, object] | None,
     ) -> str:
-        try:
-            link = await self.marzban.get_subscription_link(username)
-        except aiohttp.ClientResponseError as exc:
-            self._logger.warning(
-                "Failed to fetch subscription link: username=%s status=%s",
-                username,
-                exc.status,
-            )
-            link = ""
+        link = ""
         if not link and marzban_user:
             link = (
                 str(marzban_user.get("subscription_url") or "")
@@ -309,7 +303,24 @@ class SubscriptionService:
                 link = "\n".join(str(item) for item in links if item)
             elif isinstance(links, str):
                 link = links
-        return link
+        if not link:
+            base_url = self.settings.public_base_url or self.settings.marzban_base_url
+            link = urljoin(base_url.rstrip("/") + "/", f"sub/{username}")
+        normalized = self._ensure_absolute_link(link)
+        if not normalized:
+            self._logger.warning("Subscription link missing/invalid: username=%s", username)
+        return normalized
+
+    def _ensure_absolute_link(self, link: str) -> str:
+        if not link:
+            return ""
+        parsed = urlparse(link)
+        if parsed.scheme and parsed.netloc:
+            return link
+        if link.startswith("/"):
+            base_url = self.settings.public_base_url or self.settings.marzban_base_url
+            return urljoin(base_url.rstrip("/") + "/", link.lstrip("/"))
+        return ""
 
     async def _apply_referral_bonus(self, invitee_id: int) -> None:
         referrer_id = await self.user_repo.get_referrer_id(invitee_id)
