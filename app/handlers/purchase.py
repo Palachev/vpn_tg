@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import html
 import logging
-from urllib.parse import urlparse
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery
+from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
 from app.config import Settings
-from app.keyboards.common import tariffs_keyboard
+from app.keyboards.common import connection_keyboard, tariffs_keyboard
 from app.repositories.payment_repository import PaymentRepository
 from app.services.payments import PaymentService
 from app.services.subscription import SubscriptionService
@@ -94,35 +92,23 @@ async def handle_successful_payment(
     if user:
         status = await subscription_service.get_status(user.telegram_id)
         if status and status.subscription_link:
-            await _send_access(message, status.subscription_link)
-            return
+        await _send_access(message, status.subscription_link)
+        return
     await message.answer(
         "Оплата подтверждена, но ссылка на подписку пока не готова. Напиши в поддержку."
     )
 
-
-def _access_keyboard(link: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="📋 Скопировать", url=link)]]
-    )
-
-
 async def _send_access(message: Message, link: str) -> None:
-    safe_link = html.escape(link)
-    keyboard = _access_keyboard(link) if _is_valid_url(link) else None
+    keyboard = connection_keyboard(link)
     if not keyboard:
-        logger.warning("Access link invalid for inline button: %s", link)
+        logger.warning("Access link invalid for connection button: %s", link)
+        await message.answer("ℹ️ Access link is not ready yet.")
+        return
     await message.answer(
-        "✅ Оплата подтверждена!\n\n"
-        "Вот твоя ссылка для подключения:\n"
-        f"<code>{safe_link}</code>\n\n"
-        "Инструкция по установке доступна в меню «📱 Установка».",
+        "🛡 DagDev VPN\n"
+        "━━━━━━━━━━━━\n"
+        "Your VPN is ready.\n"
+        "Tap the button below to connect.",
         reply_markup=keyboard,
     )
 
-
-def _is_valid_url(link: str) -> bool:
-    if not link:
-        return False
-    parsed = urlparse(link)
-    return bool(parsed.scheme and parsed.netloc)

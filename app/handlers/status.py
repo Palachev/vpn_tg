@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import html
-
 from aiogram import F, Router
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
-from app.keyboards.common import renew_keyboard
+from app.keyboards.common import connection_keyboard, main_menu, renew_keyboard
 from app.repositories.user_repository import UserRepository
 from app.services.subscription import SubscriptionService
 
@@ -31,23 +29,20 @@ async def show_status(
         await message.answer(text, reply_markup=renew_keyboard())
         return
     text = (
-        "Текущая подписка:\n"
-        f"Активна до: {user.subscription_expires_at:%d.%m.%Y}\n"
-        f"Лимит трафика: {user.traffic_limit_gb or '∞'} GB\n"
-        "Если интернет в мобильной сети капризничает — переключись на Mobile сервер."
+        "🛡 DagDev VPN\n"
+        "━━━━━━━━━━━━\n"
+        "Your VPN is ready.\n"
+        "Tap the button below to connect."
     )
-    if not user.trial_used:
-        text = f"{text}\n\nМожно активировать пробный период."
-    if bot_username:
-        ref_link = f"https://t.me/{bot_username}?start={message.from_user.id}"
-        text = f"{text}\n\nПригласи друга: {ref_link}"
-    if user.is_stale:
-        text = f"{text}\n\n⚠️ Данные могут быть устаревшими — Marzban временно недоступен."
-    if user.subscription_link:
-        safe_link = html.escape(user.subscription_link)
-        text = (
-            f"{text}\n\n"
-            "Ссылка для подключения:\n"
-            f"<code>{safe_link}</code>"
-        )
-    await message.answer(text, reply_markup=renew_keyboard())
+    keyboard = connection_keyboard(user.subscription_link or "")
+    if not keyboard:
+        await message.answer("ℹ️ Access link is not ready yet.")
+        await message.answer(text, reply_markup=renew_keyboard())
+        return
+    await message.answer(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "nav:back")
+async def nav_back(callback: CallbackQuery) -> None:
+    await callback.message.answer("Выбери действие.", reply_markup=main_menu())
+    await callback.answer()
