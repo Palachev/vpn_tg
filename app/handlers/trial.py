@@ -17,12 +17,11 @@ async def start_trial(
     subscription_service: SubscriptionService,
     user_repo: UserRepository,
 ) -> None:
-    trial_used, _, _ = await user_repo.get_user_meta(message.from_user.id)
-    if trial_used:
+    marked = await user_repo.try_mark_trial_used(message.from_user.id)
+    if not marked:
         await message.answer("Пробный период уже был использован. Оформи подписку.")
         return
     user = await subscription_service.provision_trial(message.from_user.id)
-    await user_repo.set_trial_used(message.from_user.id)
     if user.subscription_link:
         safe_link = html.escape(user.subscription_link)
         await message.answer(

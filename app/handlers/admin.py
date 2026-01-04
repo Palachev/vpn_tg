@@ -13,6 +13,7 @@ from app.config import Settings
 from app.keyboards.admin import admin_broadcast_keyboard, admin_panel_keyboard
 from app.repositories.payment_repository import PaymentRepository
 from app.repositories.user_repository import UserRepository
+from app.services.subscription import SubscriptionService
 
 router = Router()
 
@@ -51,6 +52,38 @@ async def admin_panel(
         return
     text = await _render_stats(user_repo, payment_repo)
     await message.answer(text, reply_markup=admin_panel_keyboard())
+
+
+@router.message(Command("retry_pending"))
+async def retry_pending(
+    message: Message,
+    settings: Settings,
+    payment_repo: PaymentRepository,
+    subscription_service: SubscriptionService,
+) -> None:
+    if not _is_admin(message.from_user.id, settings):
+        await message.answer("Доступ запрещён.")
+        return
+    pending = await payment_repo.list_pending_invoices()
+    if not pending:
+        await message.answer("Нет платежей для повторной выдачи.")
+        return
+    success = 0
+    failed = 0
+    for invoice_id in pending:
+        try:
+            user = await subscription_service.process_payment_success(invoice_id)
+            if user:
+                success += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+    await message.answer(
+        "Повторная выдача завершена.\n"
+        f"Успешно: {success}\n"
+        f"Ошибок: {failed}"
+    )
 
 
 @router.callback_query(F.data.in_(["admin:stats", "admin:refresh"]))
