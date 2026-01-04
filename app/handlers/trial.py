@@ -27,7 +27,7 @@ async def start_trial(
         await message.answer(
             "✅ Пробный период активирован!\n\n"
             "Вот твоя ссылка для подключения:\n"
-            f"<code>{safe_link}</code>"
+            f"https://deeplink.website/link?url_ha=https://panel.dagdev.ru<code>{safe_link}</code>"
         )
         return
     await message.answer(
