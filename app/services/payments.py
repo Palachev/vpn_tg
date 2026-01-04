@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
-import json
-from datetime import datetime
-from typing import Any
 
 from app.config import Settings
-from app.models.payment import PaymentInvoice, PaymentResult
+from app.models.payment import PaymentInvoice
 from app.repositories.payment_repository import PaymentRepository
 
 
@@ -17,9 +13,8 @@ class PaymentService:
         self.payment_repo = payment_repo
 
     async def create_invoice(self, user_id: int, tariff_code: str, amount: float) -> PaymentInvoice:
-        invoice_id = self._generate_invoice_id(user_id, tariff_code)
-        await self.payment_repo.create_invoice(invoice_id, user_id, tariff_code, amount, self.settings.payment_currency)
-        payment_url = f"https://pay.example.com/checkout?invoice={invoice_id}"  # replace with real provider
+        invoice_id = self._payload_for_tariff(tariff_code)
+        payment_url = ""
         return PaymentInvoice(
             invoice_id=invoice_id,
             user_id=user_id,
@@ -29,22 +24,34 @@ class PaymentService:
             payment_url=payment_url,
         )
 
-    async def verify_webhook(self, payload: str, signature: str) -> PaymentResult | None:
-        secret = self.settings.payment_webhook_secret.encode()
-        expected_signature = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected_signature, signature):
-            return None
-        data: dict[str, Any] = json.loads(payload)
-        if data.get("status") != "paid":
-            return None
-        return PaymentResult(
-            invoice_id=data["invoice_id"],
-            status=data["status"],
-            amount=float(data["amount"]),
-            currency=data["currency"],
-            paid_at=datetime.fromisoformat(data["paid_at"]),
-        )
+    def _payload_for_tariff(self, tariff_code: str) -> str:
+        payloads = {
+            "m1": "vpn_1m",
+            "m3": "vpn_3m",
+            "m6": "vpn_6m",
+            "m12": "vpn_12m",
+        }
+        return payloads.get(tariff_code, hashlib.sha1(tariff_code.encode()).hexdigest())
 
-    def _generate_invoice_id(self, user_id: int, tariff_code: str) -> str:
-        raw = f"{user_id}-{tariff_code}-{datetime.utcnow().timestamp()}"
-        return hashlib.sha1(raw.encode()).hexdigest()
+
+def payload_to_days(payload: str) -> int:
+    mapping = {
+        "vpn_1m": 30,
+        "vpn_3m": 90,
+        "vpn_6m": 180,
+        "vpn_12m": 365,
+    }
+    return mapping.get(payload, 0)
+
+
+def simulate_payload_mapping() -> dict[str, int]:
+    return {
+        "vpn_1m": payload_to_days("vpn_1m"),
+        "vpn_3m": payload_to_days("vpn_3m"),
+        "vpn_6m": payload_to_days("vpn_6m"),
+        "vpn_12m": payload_to_days("vpn_12m"),
+    }
+
+
+if __name__ == "__main__":
+    print(simulate_payload_mapping())
