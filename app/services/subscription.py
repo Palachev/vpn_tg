@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+import asyncio
 import logging
 import math
 from typing import Optional
@@ -31,6 +33,13 @@ class SubscriptionService:
         self.payment_repo = payment_repo
         self.marzban = marzban
         self._logger = logging.getLogger(__name__)
+        self._locks: dict[int, asyncio.Lock] = {}
+
+    @asynccontextmanager
+    async def _user_lock(self, telegram_id: int) -> object:
+        lock = self._locks.setdefault(telegram_id, asyncio.Lock())
+        async with lock:
+            yield
 
     def get_tariff(self, code: str) -> Tariff:
         plan = TARIFFS[code]
@@ -68,20 +77,30 @@ class SubscriptionService:
                 marzban_user = None
             elif exc.status == 500:
                 self._logger.warning(
-                    "Marzban user record corrupted, attempting recreate: telegram_id=%s username=%s",
+                    "Marzban get_user returned 500, retrying: telegram_id=%s username=%s",
                     telegram_id,
                     username,
                 )
                 try:
-                    await self.marzban.delete_user(username)
-                except aiohttp.ClientResponseError:
-                    self._logger.exception(
-                        "Failed to delete corrupted Marzban user: telegram_id=%s username=%s",
-                        telegram_id,
-                        username,
-                    )
-                    raise
-                marzban_user = None
+                    marzban_user = await self.marzban.get_user(username)
+                except aiohttp.ClientResponseError as retry_exc:
+                    if retry_exc.status == 404:
+                        marzban_user = None
+                    elif retry_exc.status == 500:
+                        self._logger.error(
+                            "Marzban get_user repeated 500, aborting provisioning: telegram_id=%s username=%s",
+                            telegram_id,
+                            username,
+                        )
+                        raise
+                    else:
+                        self._logger.exception(
+                            "Marzban get_user failed after retry: telegram_id=%s username=%s status=%s",
+                            telegram_id,
+                            username,
+                            retry_exc.status,
+                        )
+                        raise
             else:
                 self._logger.exception(
                     "Marzban get_user failed: telegram_id=%s username=%s status=%s",
@@ -175,15 +194,14 @@ class SubscriptionService:
         if not payment_row:
             return None
         invoice_id, telegram_id, tariff_code, amount, currency, status = payment_row
-        if status == "paid":
-            return await self.user_repo.get_by_telegram_id(telegram_id)
-        marked = await self.payment_repo.complete_or_skip(invoice_id, "paid")
+        marked = await self.payment_repo.complete_or_skip(invoice_id)
         if not marked:
             return await self.user_repo.get_by_telegram_id(telegram_id)
         tariff = self.get_tariff(tariff_code)
-        user = await self.provision_user(telegram_id, tariff)
-        await self._apply_referral_bonus(telegram_id)
-        return user
+        async with self._user_lock(telegram_id):
+            user = await self.provision_user(telegram_id, tariff)
+            await self._apply_referral_bonus(telegram_id)
+            return user
 
     async def provision_trial(self, telegram_id: int) -> User:
         tariff = Tariff(
@@ -192,11 +210,12 @@ class SubscriptionService:
             price=0.0,
             duration=self.TRIAL_DURATION,
         )
-        return await self.provision_user(
-            telegram_id,
-            tariff,
-            traffic_limit_gb=self.TRIAL_TRAFFIC_LIMIT_GB,
-        )
+        async with self._user_lock(telegram_id):
+            return await self.provision_user(
+                telegram_id,
+                tariff,
+                traffic_limit_gb=self.TRIAL_TRAFFIC_LIMIT_GB,
+            )
 
     async def get_status(self, telegram_id: int) -> User | None:
         user = await self.user_repo.get_by_telegram_id(telegram_id)
@@ -284,13 +303,20 @@ class SubscriptionService:
                 or str(marzban_user.get("subscription_link") or "")
                 or str(marzban_user.get("link") or "")
             )
+        if not link and marzban_user:
+            links = marzban_user.get("links")
+            if isinstance(links, list):
+                link = "\n".join(str(item) for item in links if item)
+            elif isinstance(links, str):
+                link = links
         return link
 
     async def _apply_referral_bonus(self, invitee_id: int) -> None:
         referrer_id = await self.user_repo.get_referrer_id(invitee_id)
         if not referrer_id or referrer_id == invitee_id:
             return
-        if await self.user_repo.has_referral_bonus_applied(invitee_id):
+        marked = await self.user_repo.try_mark_referral_bonus_applied(invitee_id)
+        if not marked:
             return
         bonus_days = timedelta(days=self.settings.referral_bonus_days)
         bonus_tariff = Tariff(
@@ -300,8 +326,8 @@ class SubscriptionService:
             duration=timedelta(),
         )
         try:
-            await self.provision_user(referrer_id, bonus_tariff, referral_bonus=bonus_days)
-            await self.user_repo.mark_referral_bonus_applied(invitee_id)
+            async with self._user_lock(referrer_id):
+                await self.provision_user(referrer_id, bonus_tariff, referral_bonus=bonus_days)
             self._logger.info(
                 "Referral bonus applied: invitee=%s referrer=%s days=%s",
                 invitee_id,

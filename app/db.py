@@ -110,6 +110,15 @@ class Database:
             await self._conn.execute(query, args)
             await self._conn.commit()
 
+    async def execute_with_rowcount(self, query: str, *args: Any) -> int:
+        assert self._conn is not None
+        async with self._lock:
+            cursor = await self._conn.execute(query, args)
+            await self._conn.commit()
+            rowcount = cursor.rowcount
+            await cursor.close()
+            return rowcount
+
     async def fetchone(self, query: str, *args: Any) -> Any:
         assert self._conn is not None
         async with self._lock:

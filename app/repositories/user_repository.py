@@ -114,6 +114,27 @@ class UserRepository:
             telegram_id,
         )
 
+    async def try_mark_trial_used(self, telegram_id: int) -> bool:
+        await self.register_telegram_user(telegram_id)
+        rowcount = await self._db.execute_with_rowcount(
+            "UPDATE users SET trial_used = 1 WHERE telegram_id = ? AND trial_used = 0",
+            telegram_id,
+        )
+        if rowcount == 0:
+            rowcount = await self._db.execute_with_rowcount(
+                "UPDATE telegram_users SET trial_used = 1 WHERE telegram_id = ? AND trial_used = 0",
+                telegram_id,
+            )
+        await self._db.execute(
+            "UPDATE users SET trial_used = 1 WHERE telegram_id = ?",
+            telegram_id,
+        )
+        await self._db.execute(
+            "UPDATE telegram_users SET trial_used = 1 WHERE telegram_id = ?",
+            telegram_id,
+        )
+        return rowcount == 1
+
     async def set_referrer(self, invitee_id: int, referrer_id: int) -> bool:
         await self.register_telegram_user(invitee_id)
         row = await self._db.fetchone(
@@ -158,6 +179,35 @@ class UserRepository:
             "UPDATE users SET referral_bonus_applied = 1 WHERE telegram_id = ?",
             invitee_id,
         )
+
+    async def try_mark_referral_bonus_applied(self, invitee_id: int) -> bool:
+        await self.register_telegram_user(invitee_id)
+        rowcount = await self._db.execute_with_rowcount(
+            """
+            UPDATE users
+            SET referral_bonus_applied = 1
+            WHERE telegram_id = ? AND referral_bonus_applied = 0
+            """,
+            invitee_id,
+        )
+        if rowcount == 0:
+            rowcount = await self._db.execute_with_rowcount(
+                """
+                UPDATE telegram_users
+                SET referral_bonus_applied = 1
+                WHERE telegram_id = ? AND referral_bonus_applied = 0
+                """,
+                invitee_id,
+            )
+        await self._db.execute(
+            "UPDATE users SET referral_bonus_applied = 1 WHERE telegram_id = ?",
+            invitee_id,
+        )
+        await self._db.execute(
+            "UPDATE telegram_users SET referral_bonus_applied = 1 WHERE telegram_id = ?",
+            invitee_id,
+        )
+        return rowcount == 1
 
     async def count_users(self) -> int:
         row = await self._db.fetchone(
