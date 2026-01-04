@@ -10,7 +10,8 @@ def main_menu() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         keyboard=[
             [KeyboardButton(text="💳 Купить VPN"), KeyboardButton(text="🔑 Установить VPN")],
-            [KeyboardButton(text="📊 Статус"), KeyboardButton(text="🎁 Пригласить друзей")],
+            [KeyboardButton(text="📊 Статус"), KeyboardButton(text="🎁 Пригласить друга")],
+            [KeyboardButton(text="🆓 Пробный период")],
             [KeyboardButton(text="🆘 Помощь"), KeyboardButton(text="📄 Оферта / Условия")],
         ],
     )
@@ -18,7 +19,7 @@ def main_menu() -> ReplyKeyboardMarkup:
 
 def tariffs_keyboard() -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton(text=f"{plan['title']} — ${plan['price']}", callback_data=f"buy:{code}")]
+        [InlineKeyboardButton(text=f"{plan['title']} — {plan['price']}⭐", callback_data=f"buy:{code}")]
         for code, plan in TARIFFS.items()
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)

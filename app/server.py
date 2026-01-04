@@ -26,9 +26,15 @@ class WebhookApp:
         return app
 
     async def handle_payment(self, request: web.Request) -> web.Response:
-        payload = await request.text()
-        signature = request.headers.get("X-Signature", "")
-        result = await self.payment_service.verify_webhook(payload, signature)
+        content_type = request.content_type or ""
+        result = None
+        if content_type.startswith("application/json"):
+            payload = await request.text()
+            signature = request.headers.get("X-Signature", "")
+            result = await self.payment_service.verify_webhook(payload, signature)
+        else:
+            form = await request.post()
+            result = await self.payment_service.verify_robokassa(dict(form))
         if not result:
             return web.json_response({"status": "ignored"}, status=400)
         try:
@@ -41,4 +47,6 @@ class WebhookApp:
         if not user:
             return web.json_response({"status": "not_found"}, status=404)
         await self._send_access_message(user.telegram_id, user.subscription_link or "")
+        if not content_type.startswith("application/json"):
+            return web.Response(text=f"OK{result.invoice_id}")
         return web.json_response({"status": "ok", "user": user.marzban_username})

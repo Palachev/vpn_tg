@@ -28,11 +28,17 @@ class Database:
                 subscription_expires_at TEXT,
                 subscription_link TEXT,
                 traffic_limit_gb REAL,
+                trial_used INTEGER DEFAULT 0,
+                referrer_telegram_id INTEGER,
+                referral_bonus_applied INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS telegram_users (
                 telegram_id INTEGER PRIMARY KEY,
+                trial_used INTEGER DEFAULT 0,
+                referrer_telegram_id INTEGER,
+                referral_bonus_applied INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -65,13 +71,53 @@ class Database:
             SELECT telegram_id FROM users
             """
         )
+        await self._ensure_user_columns()
         await self._conn.commit()
+
+    async def _ensure_user_columns(self) -> None:
+        assert self._conn is not None
+        await self._ensure_columns(
+            "users",
+            {
+                "trial_used": "INTEGER DEFAULT 0",
+                "referrer_telegram_id": "INTEGER",
+                "referral_bonus_applied": "INTEGER DEFAULT 0",
+            },
+        )
+        await self._ensure_columns(
+            "telegram_users",
+            {
+                "trial_used": "INTEGER DEFAULT 0",
+                "referrer_telegram_id": "INTEGER",
+                "referral_bonus_applied": "INTEGER DEFAULT 0",
+            },
+        )
+
+    async def _ensure_columns(self, table: str, columns: dict[str, str]) -> None:
+        assert self._conn is not None
+        cursor = await self._conn.execute(f"PRAGMA table_info({table});")
+        existing = {row[1] for row in await cursor.fetchall()}
+        await cursor.close()
+        for name, definition in columns.items():
+            if name not in existing:
+                await self._conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
+                )
 
     async def execute(self, query: str, *args: Any) -> None:
         assert self._conn is not None
         async with self._lock:
             await self._conn.execute(query, args)
             await self._conn.commit()
+
+    async def execute_with_rowcount(self, query: str, *args: Any) -> int:
+        assert self._conn is not None
+        async with self._lock:
+            cursor = await self._conn.execute(query, args)
+            await self._conn.commit()
+            rowcount = cursor.rowcount
+            await cursor.close()
+            return rowcount
 
     async def fetchone(self, query: str, *args: Any) -> Any:
         assert self._conn is not None
