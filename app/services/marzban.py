@@ -92,6 +92,10 @@ class MarzbanService:
         payload = {"add_days": add_days.days}
         return await self._request("POST", f"/api/user/{username}/renew", json=payload)
 
+    async def update_user_expire(self, username: str, expire_at: datetime) -> dict[str, Any]:
+        payload = {"expire": int(expire_at.timestamp())}
+        return await self._request("PUT", f"/api/user/{username}", json=payload)
+
     async def get_user(self, username: str) -> dict[str, Any]:
         return await self._request("GET", f"/api/user/{username}")
 

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     telegram_token: str
     telegram_admin_ids: list[int] = []
     marzban_base_url: str
+    public_base_url: str | None = None
     marzban_api_key: str
     marzban_proxy: str = "vless"
     marzban_flow: str = "xtls-rprx-vision"
@@ -52,6 +53,14 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return [str(value)]
+
+    @field_validator("public_base_url", mode="before")
+    def parse_public_base_url(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value.strip() or None
+        return str(value)
 
     class Config:
         env_file = ".env"
