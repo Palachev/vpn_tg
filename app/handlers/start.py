@@ -24,4 +24,14 @@ async def handle_start(
         if ref_value.isdigit():
             referrer_id = int(ref_value)
             await referral_service.register_referral(referrer_id, message.from_user.id)
+<<<<<<< HEAD
     await message.answer("🛡 DagDev VPN\n━━━━━━━━━━━━\nВыбери действие ниже.", reply_markup=main_menu())
+=======
+    greeting = (
+        "👋 Добро пожаловать!\n\n"
+        "Мы даём быстрый и стабильный VPN на базе VLESS/REALITY.\n"
+        "Одно касание — и у тебя безопасный интернет без блокировок.\n"
+	"Пока бот находится в разработке это тестовый запуск"
+    )
+    await message.answer(greeting, reply_markup=main_menu())
+>>>>>>> e2229bf (Fix bug)

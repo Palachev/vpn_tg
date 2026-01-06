@@ -228,3 +228,7 @@ class UserRepository:
             "INSERT INTO telegram_users (telegram_id) VALUES (?) ON CONFLICT(telegram_id) DO NOTHING",
             telegram_id,
         )
+<<<<<<< HEAD
+=======
+
+>>>>>>> e2229bf (Fix bug)

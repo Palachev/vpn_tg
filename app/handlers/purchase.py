@@ -93,7 +93,12 @@ async def handle_successful_payment(
         status = await subscription_service.get_status(user.telegram_id)
         if status and status.subscription_link:
             await _send_access(message, status.subscription_link)
+<<<<<<< HEAD
         return
+=======
+            return
+            
+>>>>>>> e2229bf (Fix bug)
     await message.answer(
         "Оплата подтверждена, но ссылка на подписку пока не готова. Напиши в поддержку."
     )
