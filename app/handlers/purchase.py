@@ -78,7 +78,7 @@ async def handle_successful_payment(
         for admin_id in settings.telegram_admin_ids:
             await message.bot.send_message(
                 admin_id,
-                "⚠️ Оплата принята, но выдача доступа отложена.\n"
+                "ℹ️ Оплата принята, но выдача доступа отложена.\n"
                 f"Invoice: {invoice_id}\n"
                 f"Ошибка: {exc}",
             )
@@ -111,4 +111,3 @@ async def _send_access(message: Message, link: str) -> None:
         "Tap the button below to connect.",
         reply_markup=keyboard,
     )
-

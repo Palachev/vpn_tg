@@ -10,7 +10,7 @@ from app.services.subscription import SubscriptionService
 router = Router()
 
 
-@router.message(F.text == "🆓 Пробный период")
+@router.message(F.text == "Пробный период")
 async def start_trial(
     message: Message,
     subscription_service: SubscriptionService,

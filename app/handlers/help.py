@@ -14,12 +14,12 @@ FAQ = (
 )
 
 
-@router.message(F.text == "🆘 Помощь")
+@router.message(F.text == "Помощь")
 async def help_message(message: Message) -> None:
     await message.answer(FAQ)
 
 
-@router.message(F.text == "📄 Оферта / Условия")
+@router.message(F.text == "Оферта / Условия")
 async def terms(message: Message) -> None:
     await message.answer(
         "Оплачивая подписку, ты соглашаешься использовать VPN только для легального контента."
