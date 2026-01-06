@@ -11,6 +11,7 @@ from typing import Optional
 import aiohttp
 
 from app.config import TARIFFS, Settings
+from app.models.status import SubscriptionSnapshot
 from app.models.tariff import DEFAULT_TRAFFIC_LIMIT_GB, Tariff
 from app.models.user import User
 from app.repositories.payment_repository import PaymentRepository
@@ -227,6 +228,10 @@ class SubscriptionService:
             )
 
     async def get_status(self, telegram_id: int) -> User | None:
+        snapshot = await self.get_status_snapshot(telegram_id)
+        return snapshot.user if snapshot else None
+
+    async def get_status_snapshot(self, telegram_id: int) -> SubscriptionSnapshot | None:
         user = await self.user_repo.get_by_telegram_id(telegram_id)
         if not user:
             return None
@@ -235,6 +240,8 @@ class SubscriptionService:
             marzban_user = await self.marzban.get_user(username)
             expires_at = self._extract_expire(marzban_user) or user.subscription_expires_at
             link = user.subscription_link or await self._fetch_subscription_link(username, marzban_user)
+            used_gb, limit_gb = self._extract_traffic(marzban_user)
+            traffic_limit = limit_gb or user.traffic_limit_gb
             if (expires_at != user.subscription_expires_at) or (
                 not user.subscription_link and link and link != user.subscription_link
             ):
@@ -243,17 +250,24 @@ class SubscriptionService:
                     expires_at or user.subscription_expires_at,
                     link or user.subscription_link,
                 )
-            return User(
+            updated_user = User(
                 telegram_id=user.telegram_id,
                 marzban_username=username,
                 marzban_uuid=user.marzban_uuid,
                 subscription_expires_at=expires_at,
                 subscription_link=link or user.subscription_link,
-                traffic_limit_gb=user.traffic_limit_gb,
+                traffic_limit_gb=traffic_limit,
                 is_stale=False,
                 trial_used=user.trial_used,
                 referrer_telegram_id=user.referrer_telegram_id,
                 referral_bonus_applied=user.referral_bonus_applied,
+            )
+            return SubscriptionSnapshot(
+                user=updated_user,
+                traffic_used_gb=used_gb,
+                traffic_limit_gb=traffic_limit,
+                server_label="Auto",
+                is_stale=False,
             )
         except aiohttp.ClientResponseError as exc:
             self._logger.warning(
@@ -262,7 +276,7 @@ class SubscriptionService:
                 username,
                 exc.status,
             )
-            return User(
+            stale_user = User(
                 telegram_id=user.telegram_id,
                 marzban_username=username,
                 marzban_uuid=user.marzban_uuid,
@@ -273,6 +287,13 @@ class SubscriptionService:
                 trial_used=user.trial_used,
                 referrer_telegram_id=user.referrer_telegram_id,
                 referral_bonus_applied=user.referral_bonus_applied,
+            )
+            return SubscriptionSnapshot(
+                user=stale_user,
+                traffic_used_gb=None,
+                traffic_limit_gb=user.traffic_limit_gb,
+                server_label="Auto",
+                is_stale=True,
             )
 
     def _extract_expire(self, marzban_user: dict[str, object] | None) -> datetime | None:
@@ -293,6 +314,27 @@ class SubscriptionService:
         if delta_seconds <= 0:
             return 0
         return int(math.ceil(delta_seconds / 86400))
+
+    def _extract_traffic(self, marzban_user: dict[str, object] | None) -> tuple[float | None, float | None]:
+        if not marzban_user:
+            return None, None
+        limit_bytes = self._get_numeric_value(marzban_user, ["data_limit", "data_limit_bytes"])
+        used_bytes = self._get_numeric_value(marzban_user, ["used_traffic", "data_used", "used_data", "traffic_used"])
+        limit_gb = self._bytes_to_gb(limit_bytes) if limit_bytes else None
+        used_gb = self._bytes_to_gb(used_bytes) if used_bytes else None
+        return used_gb, limit_gb
+
+    def _get_numeric_value(self, payload: dict[str, object], keys: list[str]) -> float | None:
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str) and value.isdigit():
+                return float(value)
+        return None
+
+    def _bytes_to_gb(self, value: float) -> float:
+        return value / 1024**3
 
     async def _fetch_subscription_link(
         self,

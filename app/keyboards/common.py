@@ -28,28 +28,62 @@ def tariffs_keyboard() -> InlineKeyboardMarkup:
 
 def platform_keyboard() -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton(text="📱 Android", callback_data="install:android")],
-        [InlineKeyboardButton(text="🍎 iOS", callback_data="install:ios")],
-        [InlineKeyboardButton(text="💻 Windows", callback_data="install:windows")],
-        [InlineKeyboardButton(text="💻 macOS", callback_data="install:macos")],
+        [InlineKeyboardButton(text="🍎 iOS / macOS", callback_data="install:apple")],
+        [InlineKeyboardButton(text="🪟 Windows", callback_data="install:windows")],
+        [InlineKeyboardButton(text="🤖 Android", callback_data="install:android")],
+        [InlineKeyboardButton(text="⬅️ Back", callback_data="nav:back")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def renew_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Продлить", callback_data="renew:start")]]
+        inline_keyboard=[[InlineKeyboardButton(text="💳 Renew / Buy", callback_data="renew:start")]]
     )
 
 
-def connection_keyboard(subscription_link: str) -> InlineKeyboardMarkup | None:
-    deeplink = build_happ_deeplink(subscription_link)
+def install_actions_keyboard(
+    install_url: str,
+    subscription_link: str,
+    profile_name: str | None = None,
+) -> InlineKeyboardMarkup | None:
+    deeplink = build_happ_deeplink(subscription_link, profile_name)
     if not deeplink:
         return None
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔗 Connect VPN", url=deeplink)],
-            [InlineKeyboardButton(text="📥 Install Happ Proxy", url="https://happ.pro")],
+            [InlineKeyboardButton(text="⬇️ Install Happ Proxy", url=install_url)],
+            [InlineKeyboardButton(text="🔑 Connect VPN", url=deeplink)],
+            [InlineKeyboardButton(text="⬅️ Back", callback_data="install:back")],
+        ]
+    )
+
+
+def connection_keyboard(
+    subscription_link: str,
+    install_url: str = "https://happ.pro",
+    profile_name: str | None = None,
+) -> InlineKeyboardMarkup | None:
+    deeplink = build_happ_deeplink(subscription_link, profile_name)
+    if not deeplink:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬇️ Install Happ Proxy", url=install_url)],
+            [InlineKeyboardButton(text="🔑 Connect VPN", url=deeplink)],
+            [InlineKeyboardButton(text="⬅️ Back", callback_data="nav:back")],
+        ]
+    )
+
+
+def status_keyboard(subscription_link: str, profile_name: str | None = None) -> InlineKeyboardMarkup | None:
+    deeplink = build_happ_deeplink(subscription_link, profile_name)
+    if not deeplink:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔑 Connect VPN", url=deeplink)],
+            [InlineKeyboardButton(text="💳 Renew / Buy", callback_data="renew:start")],
             [InlineKeyboardButton(text="⬅️ Back", callback_data="nav:back")],
         ]
     )

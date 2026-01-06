@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     webhook_path: str = "/payment/webhook"
     base_subscription_days: int = 30
     referral_bonus_days: int = 7
+    happ_apple_url: str = "https://happ.pro"
+    happ_windows_url: str = "https://happ.pro"
+    happ_android_url: str = "https://happ.pro"
 
     @field_validator("telegram_admin_ids", mode="before")
     def parse_admin_ids(cls, value: object) -> list[int]:

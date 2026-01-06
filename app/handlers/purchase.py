@@ -87,19 +87,20 @@ async def handle_successful_payment(
         )
         return
     if user and user.subscription_link:
-        await _send_access(message, user.subscription_link)
+        await _send_access(message, user.subscription_link, subscription_service.get_tariff(tariff_code).title)
         return
     if user:
         status = await subscription_service.get_status(user.telegram_id)
         if status and status.subscription_link:
-            await _send_access(message, status.subscription_link)
+            await _send_access(message, status.subscription_link, subscription_service.get_tariff(tariff_code).title)
         return
     await message.answer(
         "Оплата подтверждена, но ссылка на подписку пока не готова. Напиши в поддержку."
     )
 
-async def _send_access(message: Message, link: str) -> None:
-    keyboard = connection_keyboard(link)
+async def _send_access(message: Message, link: str, tariff_title: str | None = None) -> None:
+    profile_name = _build_profile_name(tariff_title)
+    keyboard = connection_keyboard(link, profile_name=profile_name)
     if not keyboard:
         logger.warning("Access link invalid for connection button: %s", link)
         await message.answer("ℹ️ Access link is not ready yet.")
@@ -107,8 +108,12 @@ async def _send_access(message: Message, link: str) -> None:
     await message.answer(
         "🛡 DagDev VPN\n"
         "━━━━━━━━━━━━\n"
-        "Your VPN is ready.\n"
-        "Tap the button below to connect.",
+        "Your VPN is ready.",
         reply_markup=keyboard,
     )
 
+
+def _build_profile_name(tariff_title: str | None) -> str:
+    if tariff_title:
+        return f"DagDev VPN • {tariff_title}"
+    return "DagDev VPN"

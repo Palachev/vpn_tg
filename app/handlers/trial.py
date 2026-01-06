@@ -22,13 +22,12 @@ async def start_trial(
         return
     user = await subscription_service.provision_trial(message.from_user.id)
     if user.subscription_link:
-        keyboard = connection_keyboard(user.subscription_link)
+        keyboard = connection_keyboard(user.subscription_link, profile_name="DagDev VPN • Trial")
         if keyboard:
             await message.answer(
                 "🛡 DagDev VPN\n"
                 "━━━━━━━━━━━━\n"
-                "Your VPN is ready.\n"
-                "Tap the button below to connect.",
+                "Your VPN is ready.",
                 reply_markup=keyboard,
             )
             return
